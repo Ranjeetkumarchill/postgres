@@ -1,0 +1,41 @@
+---
+- name: Configure PostgreSQL
+  hosts: all
+  become: true
+  tasks:
+    - name: Install PostgreSQL
+      apt:
+        name: "postgresql-14.0, postgresql-contrib, python3-psycopg2"
+        state: present
+        update_cache: yes
+
+    - name: Configure PostgreSQL to allow replication
+      lineinfile:
+        path: /etc/postgresql/14.0/main/postgresql.conf
+        regexp: '^{ item.key }'
+        line: '{ item.key } = { item.value }'
+      loop:
+        - { key: "listen_addresses", value: "*" }
+        - { key: "wal_level", value: "replica" }
+        - { key: "max_wal_senders", value: "10" }
+        - { key: "wal_keep_segments", value: "64" }
+        - { key: "max_connections", value: "300" }
+        - { key: "shared_buffers", value: "512MB" }
+
+    - name: Configure authentication for replication
+      lineinfile:
+        path: /etc/postgresql/14.0/main/pg_hba.conf
+        line: "host    replication     replicator    YOUR_PRIMARY_IP/32    md5"
+        state: present
+
+    - name: Configure replicas
+      lineinfile:
+        path: /etc/postgresql/14.0/main/pg_hba.conf
+        line: "host    replication     replicator    { item }/32    md5"
+        with_items: ['YOUR_REPLICA_IP_1', 'YOUR_REPLICA_IP_2']
+        state: present
+
+    - name: Reload PostgreSQL configuration
+      service:
+        name: postgresql
+        state: reloaded

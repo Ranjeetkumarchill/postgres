@@ -1,0 +1,15 @@
+aws_region              = "us-east-1"
+postgres_version        = "14.0"
+instance_type           = "db.t3.micro"
+number_of_replicas      = 2
+subnet_ids              = ["subnet-xxxxxxxxx"]
+master_username         = "postgres"
+master_password         = "your_secure_password"
+max_connections         = 300
+shared_buffers          = "512MB"
+allocated_storage       = 20
+vpc_security_group_ids  = ["sg-xxxxxxxx"]
+backup_retention_period  = 7
+multi_az               = false
+encryption             = false
+tags                   = {"Environment": "Production"}
