@@ -5,7 +5,15 @@ Follow the instructions below to get started.
 
 Prerequisites
 
-1. Set AWS Credentials
+1. Use Virtual Environment
+
+   use these commands:
+
+       cd /path/to/your/project
+       python3 -m venv venv
+       source venv/bin/activate
+
+2. Set AWS Credentials
     
     Create an IAM user in your AWS account and download the Access Key ID and Secret Access Key.
 
@@ -15,18 +23,18 @@ Prerequisites
         aws_access_key_id = YOUR_ACCESS_KEY_ID
         aws_secret_access_key = YOUR_SECRET_ACCESS_KEY
 
-2. Install Terraform
+3. Install Terraform
 
     Install Terraform using the following command:
     
         pip install terraform
 
-3. Install Ansible
+4. Install Ansible
     Install Ansible using the command:
 
         pip install ansible
 
-4. Start the Server
+5. Start the Server
     Run the Django development server with the following command (port is optional):
 
         python manage.py runserver 8001
