@@ -3,6 +3,16 @@ description = "AWS region for the DB instances"
 type        = string
 }
 
+variable "aws_access_key" {
+description = "AWS region for the DB instances"
+type        = string
+}
+
+variable "aws_secret_key" {
+description = "AWS region for the DB instances"
+type        = string
+}
+
 variable "postgres_version" {
 description = "PostgreSQL version"
 type        = string
@@ -13,14 +23,24 @@ description = "DB instance type"
 type        = string
 }
 
+variable "vpc_cidr" {
+description = "vpc cidr"
+type        = string
+}
+
 variable "number_of_replicas" {
 description = "Number of read replicas"
 type        = number
 }
 
-variable "subnet_ids" {
-description = "List of subnet IDs for DB instances"
-type        = list(string)
+variable "subnet1_cidr" {
+description = "List of subnet ID for DB instances"
+type        = string
+}
+
+variable "subnet2_cidr" {
+description = "List of subnet ID for DB instances"
+type        = string
 }
 
 variable "master_username" {
@@ -51,10 +71,6 @@ type        = number
 default     = 20
 }
 
-variable "vpc_security_group_ids" {
-description = "List of security group IDs"
-type        = list(string)
-}
 
 variable "backup_retention_period" {
 description = "Backup retention period in days"
@@ -74,7 +90,7 @@ type        = bool
 default     = false
 }
 
-variable "tags" {
-description = "Tags for the resources"
-type        = map(string)
-}
+# variable "tags" {
+# description = "Tags for the resources"
+# type        = map(string)
+# }
