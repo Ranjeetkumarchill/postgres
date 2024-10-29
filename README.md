@@ -74,19 +74,15 @@ Prerequisites
     
         curl -X POST http://localhost:8001/api/apply/ -H "Content-Type: application/json" -d '{}'
 
-   ![Uploading Screenshot 2024-10-29 at 9.51.04 PM.png…]()
 
-
-5. Generate Ansible Playbook
+4. Generate Ansible Playbook
     
         curl -X POST http://localhost:8001/api/ansible-generate/ -H "Content-Type: application/json" -d '{}'
     
-6. Apply Ansible Playbook
+5. Apply Ansible Playbook
 
     To run the Ansible playbook, execute:
     
         curl -X POST http://localhost:8001/api/run-ansible/ -H "Content-Type: application/json" -d '{}'
-
-![Uploading Screenshot 2024-10-29 at 9.51.42 PM.png…]()
 
 
