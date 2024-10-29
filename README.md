@@ -46,26 +46,20 @@ Prerequisites
  
     Use the following curl command to generate Terraform code:
 
-        curl -X POST http://localhost:8001/api/generate/ \
-        -H "Content-Type: application/json" \
-        -d '{
-            "aws_region": "us-east-1",
-            "postgres_version": "14.0",
+        curl -X POST http://localhost:8001/api/generate/ -H "Content-Type: application/json" -d '{            
+            "aws_region": "ap-south-1","vpc_cidr": "10.0.0.0/16",
+            "postgres_version": "14",
             "instance_type": "db.t3.micro",
-            "number_of_replicas": 2,
-            "subnet_ids": ["subnet-xxxxxxxxx"],
+            "number_of_replicas": 1,
+            "subnet1_cidr": "10.0.1.0/24","subnet2_cidr": "10.0.2.0/24",
             "master_username": "postgres",
             "master_password": "your_secure_password",
-            "max_connections": 300,
-            "shared_buffers": "512MB",
+            "max_connections": 30,
+            "shared_buffers": "67108864",
             "allocated_storage": 20,
-            "vpc_security_group_ids": ["sg-xxxxxxxx"],
             "backup_retention_period": 7,
             "multi_az": false,
-            "encryption": false,
-            "tags": {
-                "Environment": "Production"
-            }
+            "encryption": false
         }'
 
 2. Plan Terraform
@@ -81,17 +75,8 @@ Prerequisites
         curl -X POST http://localhost:8001/api/apply/ -H "Content-Type: application/json" -d '{}'
 
 4. Generate Ansible Playbook
-
-    To provide data to this you need to get primary_ip and replica_ips from output of terraform apply.
-    Generate the Ansible playbook with the following command:
     
-        curl -X POST http://localhost:8001/api/ansible-generate/ -H "Content-Type: application/json" -d '{
-            "primary_ip": "YOUR_PRIMARY_IP",
-            "replica_ips": ["YOUR_REPLICA_IP_1", "YOUR_REPLICA_IP_2"],
-            "postgres_version": "14.0",
-            "max_connections": 300,
-            "shared_buffers": "512MB"
-        }'
+        curl -X POST http://localhost:8001/api/ansible-generate/ -H "Content-Type: application/json" -d '{}'
     
 5. Apply Ansible Playbook
 
