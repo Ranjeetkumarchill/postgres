@@ -1,53 +1,126 @@
 def generate_ansible_playbook(data):
-    primary_ip = data.get("primary_ip")
-    replica_ips = data.get("replica_ips", [])
-    postgres_version = data.get("postgres_version", "14")  
-    max_connections = data.get("max_connections", 200) 
-    shared_buffers = data.get("shared_buffers", "256MB")
-
-    # Generate Ansible playbook
     ansible_playbook = f"""
 ---
-- name: Configure PostgreSQL
-  hosts: all
-  become: true
+- hosts: localhost
+  vars_files:
+    - secrets.yml
+
   tasks:
+    - name: Connect to PostgreSQL
+      postgresql_db:
+        name: mydb
+        state: present
+        login_user: "{{{{ db_user }}}}"
+        login_password: "{{{{ db_password }}}}"
+        login_host: "{{{{ primary_host }}}}"
+        login_port: 5432
+        
     - name: Install PostgreSQL
-      apt:
-        name: "postgresql-{postgres_version}, postgresql-contrib, python3-psycopg2"
-        state: present
-        update_cache: yes
-
-    - name: Configure PostgreSQL to allow replication
-      lineinfile:
-        path: /etc/postgresql/{postgres_version}/main/postgresql.conf
-        regexp: '^{{ item.key }}'
-        line: '{{ item.key }} = {{ item.value }}'
-      loop:
-        - {{ key: "listen_addresses", value: "*" }}
-        - {{ key: "wal_level", value: "replica" }}
-        - {{ key: "max_wal_senders", value: "10" }}
-        - {{ key: "wal_keep_segments", value: "64" }}
-        - {{ key: "max_connections", value: "{max_connections}" }}
-        - {{ key: "shared_buffers", value: "{shared_buffers}" }}
-
-    - name: Configure authentication for replication
-      lineinfile:
-        path: /etc/postgresql/{postgres_version}/main/pg_hba.conf
-        line: "host    replication     replicator    {primary_ip}/32    md5"
+      homebrew:
+        name: postgresql@14
         state: present
 
-    - name: Configure replicas
-      lineinfile:
-        path: /etc/postgresql/{postgres_version}/main/pg_hba.conf
-        line: "host    replication     replicator    {{ item }}/32    md5"
-        with_items: {replica_ips}
-        state: present
+    - name: Initialize PostgreSQL database
+      command: /usr/bin/postgresql14-setup initdb
+      when: ansible_hostname == "{{{{primary_host}}}}"
 
-    - name: Reload PostgreSQL configuration
-      service:
-        name: postgresql
-        state: reloaded
+    - name: Start PostgreSQL service
+      command: brew services restart postgresql@14
+      changed_when: false
+
+    - name: Initialize PostgreSQL database (only on primary)
+      command: /usr/local/opt/postgresql@14/bin/initdb /usr/local/var/postgresql@14
+      when: inventory_hostname == "primary"
+      args:
+        creates: /usr/local/var/postgresql@14/PG_VERSION 
+
+    - name: Check replication status on primary
+      postgresql_query:
+        login_host: "{{{{ primary_host }}}}"
+        login_user: "{{{{ db_user }}}}"
+        login_password: "{{{{ db_password }}}}"
+        db: "{{{{ db_name }}}}"
+        query: "SELECT pid, usename, application_name, client_addr, state FROM pg_stat_replication;"
+      register: primary_replication_status
+
+    - name: Output primary replication status
+      debug:
+        var: primary_replication_status
+
+    - name: Check replication lag on primary
+      postgresql_query:
+        login_host: "{{{{ primary_host }}}}"
+        login_user: "{{{{ db_user }}}}"
+        login_password: "{{{{ db_password }}}}"
+        db: "{{{{ db_name }}}}"
+        query: SELECT application_name, client_addr,pg_current_wal_lsn() - replay_lsn AS replication_lag FROM pg_stat_replication;
+      register: replication_lag
+
+    - name: Output replication lag
+      debug:
+        var: replication_lag
+    
+    - name: Create employees table
+      postgresql_query:
+        query: >
+          CREATE TABLE IF NOT EXISTS employees (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100),
+            position VARCHAR(50)
+          );
+        db: "{{{{ db_name }}}}"
+        login_user: "{{{{ db_user }}}}"
+        login_host: "{{{{ primary_host }}}}"
+        login_password: "{{{{ db_password }}}}" 
+        port: 5432
+        autocommit: yes 
+
+    - name: Insert sample data
+      postgresql_query:
+        query: >
+          INSERT INTO employees (name, position)
+          SELECT 'Alice', 'Developer'
+          WHERE NOT EXISTS (SELECT 1 FROM employees WHERE name = 'Alice')
+          UNION ALL
+          SELECT 'Bob', 'Designer'
+          WHERE NOT EXISTS (SELECT 1 FROM employees WHERE name = 'Bob')
+          UNION ALL
+          SELECT 'Charlie', 'Manager'
+          WHERE NOT EXISTS (SELECT 1 FROM employees WHERE name = 'Charlie');
+        db: "{{{{ db_name }}}}"
+        login_user: "{{{{ db_user }}}}"
+        login_host: "{{{{ primary_host }}}}"
+        login_password: "{{{{ db_password }}}}"
+        port: 5432
+        autocommit: yes
+
+    - name: Verify data consistency between primary and replica
+      postgresql_query:
+        login_host: "{{{{ replica_host }}}}"
+        login_user: "{{{{ db_user }}}}"
+        login_password: "{{{{ db_password }}}}"
+        db: "{{{{ db_name }}}}"
+        query: "SELECT COUNT(*) FROM employees;"
+      register: replica_count
+
+    - name: Verify data consistency between primary and replica
+      postgresql_query:
+        login_host: "{{{{ primary_host }}}}"
+        login_user: "{{{{ db_user }}}}"
+        login_password: "{{{{ db_password }}}}"
+        db: "{{{{ db_name }}}}"
+        query: "SELECT COUNT(*) FROM employees;"
+      register: primary_count
+
+    - name: Check data consistency
+      debug:
+        msg: "Primary count: {{{{ primary_count }}}}, Replica count: {{{{ replica_count }}}}"
+      when: primary_count != replica_count
+
+    - name: Verify if primary and replica counts match
+      fail:
+        msg: "Data inconsistency detected: primary count is not equal to replica count."
+      when: primary_count != replica_count
 """
 
     # Write to Ansible playbook file

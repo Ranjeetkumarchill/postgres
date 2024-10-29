@@ -5,32 +5,34 @@ def generate_terraform_code(data):
     if not os.path.exists('terraform'):
         os.makedirs('terraform')
 
-    aws_region = data.get("aws_region", "ap-south-1")
-    vpc_cidr = data.get("vpc_cidr","10.0.0.0/16") 
-    postgres_version = data.get("postgres_version", "14.0")
-    instance_type = data.get("instance_type", "db.t3.micro")
-    number_of_replicas = data.get("number_of_replicas", 1)
-    subnet1_cidr = data.get("subnet1_cidr", "10.0.1.0/24")
-    subnet2_cidr = data.get("subnet2_cidr", "10.0.2.0/24")
-    master_username = data.get("master_username", "postgres")
-    master_password = data.get("master_password", "your_secure_password")
-    max_connections = data.get("max_connections", 200)
-    shared_buffers = data.get("shared_buffers", "256MB")
-    allocated_storage = data.get("allocated_storage", 20)
+    aws_region              = data.get("aws_region", "ap-south-1")
+    vpc_cidr                = data.get("vpc_cidr","10.0.0.0/16") 
+    postgres_version        = data.get("postgres_version", "14.0")
+    instance_type           = data.get("instance_type", "db.t3.micro")
+    number_of_replicas      = data.get("number_of_replicas", 1)
+    subnet1_cidr            = data.get("subnet1_cidr", "10.0.1.0/24")
+    subnet2_cidr            = data.get("subnet2_cidr", "10.0.2.0/24")
+    master_username         = data.get("master_username", "postgres")
+    master_password         = data.get("master_password", "your_secure_password")
+    max_connections         = data.get("max_connections", 200)
+    shared_buffers          = data.get("shared_buffers", "256MB")
+    allocated_storage       = data.get("allocated_storage", 20)
     backup_retention_period = data.get("backup_retention_period", 7)
-    multi_az = data.get("multi_az", False)
-    encryption = data.get("encryption", False)
-    # tags = data.get("tags", {})
+    multi_az                = data.get("multi_az", False)
+    encryption              = data.get("encryption", False)
 
     # Generate main.tf
     main_tf = f"""
 provider "aws" {{
-  region = "{aws_region}"
-  profile= "terraform"
+  region  = "{aws_region}"
+  profile = "terraform"
 }}
 
 resource "aws_vpc" "main" {{
   cidr_block = "{vpc_cidr}"
+  tags= {{
+      Name="test-vpc"
+  }}
 }}
 
 resource "aws_subnet" "subnet1" {{
@@ -48,12 +50,18 @@ resource "aws_subnet" "subnet2" {{
 resource "aws_security_group" "postgres_sg" {{
   vpc_id = aws_vpc.main.id
 
-  ingress {{
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["{subnet1_cidr}","{subnet2_cidr}"] 
+  ingress =[{{
+    from_port        = 5432
+    description      = ""
+    ipv6_cidr_blocks = []
+    prefix_list_ids  = []
+    security_groups  = ["sg-0ca0aba0a3041bbee",]
+    self             = false
+    to_port          = 5432
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"] 
   }}
+  ]
 
   egress {{
     from_port   = 0
@@ -73,14 +81,14 @@ resource "aws_db_parameter_group" "default" {{
   family = "postgres{postgres_version}"
 
   parameter {{
-    name  = "max_connections"
-    value = "{max_connections}"
+    name         = "max_connections"
+    value        = "{max_connections}"
     apply_method = "pending-reboot"
   }}
 
   parameter {{
-    name  = "shared_buffers"
-    value = "{shared_buffers}"
+    name         = "shared_buffers"
+    value        = "{shared_buffers}"
     apply_method = "pending-reboot"
   }}
 }}
@@ -88,36 +96,41 @@ resource "aws_db_parameter_group" "default" {{
 resource "aws_db_instance" "primary" {{
   identifier              = "primary-db"
   engine                  = "postgres"
-  engine_version         = "{postgres_version}"
-  instance_class         = "{instance_type}"
+  engine_version          = "{postgres_version}"
+  instance_class          = "{instance_type}"
   allocated_storage       = {allocated_storage}
-  username               = "{master_username}"
-  password               = "{master_password}"  
+  username                = "{master_username}"
+  password                = "{master_password}"  
   db_subnet_group_name    = aws_db_subnet_group.default.name
-  vpc_security_group_ids   = [aws_security_group.postgres_sg.id]
+  vpc_security_group_ids  = [aws_security_group.postgres_sg.id]
   multi_az                = false
-  storage_encrypted      = {str(encryption).lower()}
+  storage_encrypted       = {str(encryption).lower()}
   skip_final_snapshot     = true
   backup_retention_period = "{backup_retention_period}"
   backup_window           = "10:00-12:00" 
+  publicly_accessible     = true
 }}
 
 resource "aws_db_instance" "replica" {{
   identifier              = "replica-db"
   engine                  = "postgres"
-  engine_version         = "{postgres_version}"
-  instance_class         = "{instance_type}"
-  vpc_security_group_ids   = [aws_security_group.postgres_sg.id]
+  engine_version          = "{postgres_version}"
+  instance_class          = "{instance_type}"
+  vpc_security_group_ids  = [aws_security_group.postgres_sg.id]
   replicate_source_db     = aws_db_instance.primary.identifier
   skip_final_snapshot     = true
+  publicly_accessible     = true
 }}
 
-output "primary_db_ip" {{
-  value = aws_db_instance.primary.address
-}}
-
-output "replica_db_ips" {{
-  value = aws_db_instance.replica.address
+resource "local_file" "inventory" {{
+  content = <<EOF
+db_name: mydb
+db_user: {master_username}
+db_password: {master_password}
+primary_host: ${{aws_db_instance.primary.address}}
+replica_host: ${{aws_db_instance.replica.address}}
+EOF
+  filename = "${{path.module}}/../ansible/secrets.yml"
 }}
 
 """
@@ -237,8 +250,8 @@ vpc_cidr                = "{data.get("vpc_cidr","10.0.0.0/16")}"
 postgres_version        = "{data.get('postgres_version', '14.0')}"
 instance_type           = "{data.get('instance_type', 'db.t3.micro')}"
 number_of_replicas      = "{data.get('number_of_replicas', 1)}"
-subnet1_cidr             = "{data.get("subnet1_cidr", "10.0.1.0/24")}"
-subnet2_cidr             = "{data.get("subnet2_cidr", "10.0.1.0/24")}"
+subnet1_cidr            = "{data.get("subnet1_cidr", "10.0.1.0/24")}"
+subnet2_cidr            = "{data.get("subnet2_cidr", "10.0.1.0/24")}"
 master_username         = "{data.get('master_username', 'postgres')}"
 master_password         = "{data.get('master_password', 'your_secure_password')}"
 max_connections         = "{data.get('max_connections', 200)}"

@@ -46,13 +46,9 @@ def apply_infrastructure(request):
                 text=True,
                 check=True
             )
-            outputs = json.loads(result.stdout)
-            primary_ip = outputs.get('primary_db_ip').get('value')
-            replica_ips = outputs.get('replica_db_ips').get('value')
 
             return JsonResponse({"message": "Infrastructure created successfully.",
-                                 "primary_ip": primary_ip,
-                                 "replica_ips": replica_ips}, status=200)
+                                 }, status=200)
         except subprocess.CalledProcessError as e:
             return JsonResponse({"error": str(e)}, status=500)
 
@@ -71,9 +67,10 @@ def ansible_generate_code(request):
 
 @csrf_exempt
 def run_ansible_playbook(request):
+    inventory_file = "inventory.ini"
     if request.method == 'POST':
         try:
-            subprocess.run(["ansible-playbook", "setup_postgres.yml"], cwd='ansible', check=True)
+            subprocess.run(["ansible-playbook", "-i", inventory_file,"setup_postgres.yml"], cwd='ansible', check=True)
 
             return JsonResponse({"message": "Ansible playbook executed successfully."}, status=200)
         except subprocess.CalledProcessError as e:

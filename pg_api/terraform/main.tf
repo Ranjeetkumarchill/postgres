@@ -5,6 +5,9 @@ provider "aws" {
 
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
+  tags= {
+      Name="test-vpc"
+  }
 }
 
 resource "aws_subnet" "subnet1" {
@@ -22,12 +25,29 @@ resource "aws_subnet" "subnet2" {
 resource "aws_security_group" "postgres_sg" {
   vpc_id = aws_vpc.main.id
 
-  ingress {
+  ingress =[{
+    from_port   = 22
+    description = ""
+    ipv6_cidr_blocks = []
+    prefix_list_ids  = []
+    security_groups  = []
+    self        = false
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] 
+  },
+  {
     from_port   = 5432
+    description = ""
+    ipv6_cidr_blocks = []
+    prefix_list_ids  = []
+    security_groups  = []
+    self        = false
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = ["10.0.1.0/24","10.0.2.0/24"] 
+    cidr_blocks = ["10.0.1.0/24","10.0.2.0/24","0.0.0.0/0"] 
   }
+  ]
 
   egress {
     from_port   = 0
@@ -86,10 +106,23 @@ resource "aws_db_instance" "replica" {
   skip_final_snapshot     = true
 }
 
-output "primary_db_ip" {
-  value = aws_db_instance.primary.address
+resource "local_file" "creds" {
+  content = <<EOF
+
+db_user: postgres
+db_password: your_secure_password
+EOF
+  filename = "${path.module}/../ansible/vars.yml"
 }
 
-output "replica_db_ips" {
-  value = aws_db_instance.replica.address
+
+resource "local_file" "inventory" {
+  content = <<EOF
+db
+db_user: postgres
+db_password: your_secure_password
+primary_host: ${aws_db_instance.primary.address}
+replica_host: ${aws_db_instance.replica.address}
+EOF
+  filename = "${path.module}/../ansible/secrets.yml"
 }
