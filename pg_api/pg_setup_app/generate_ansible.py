@@ -6,7 +6,7 @@ def generate_ansible_playbook(data):
     - secrets.yml
 
   tasks:
-    - name: Connect to PostgreSQL via Bastion
+    - name: Connect to PostgreSQL
       postgresql_db:
         name: mydb
         state: present
